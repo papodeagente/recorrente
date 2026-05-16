@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+.DS_Store
+README.md
+ARQUITETURA.md
+DECISOES_NEGOCIO.md
+docs/
+.vscode
+*.log
+coverage

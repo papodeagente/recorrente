@@ -1,0 +1,18 @@
+# Worker BullMQ — imagem enxuta para o processo de workers em produção.
+# Compartilha .env / DATABASE_URL / REDIS_URL com o app.
+
+FROM node:22-alpine
+RUN apk add --no-cache libc6-compat openssl
+WORKDIR /app
+
+ENV NODE_ENV=production
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm install --no-save tsx
+
+COPY tsconfig.json ./
+COPY src ./src
+COPY workers ./workers
+COPY drizzle ./drizzle
+
+ENV RUNTIME_ROLE=worker
+CMD ["npx", "tsx", "workers/index.ts"]
