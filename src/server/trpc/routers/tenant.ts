@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { setSessionCookie } from "@/server/auth/session";
+import { buildSessionCookie, signSessionToken } from "@/server/auth/session";
 import { db } from "@/server/db/client";
 import { tenantSettings, tenants, userTenants } from "@/server/db/schema";
 import { protectedProcedure, router, tenantReadProcedure, tenantWriteProcedure } from "@/server/trpc/init";
@@ -11,6 +11,15 @@ const slugRule = z
   .min(3)
   .max(40)
   .regex(/^[a-z0-9-]+$/, "Apenas letras minúsculas, números e hífen.");
+
+async function setActiveTenant(
+  resHeaders: Headers,
+  userId: string,
+  tenantId: string | null,
+): Promise<void> {
+  const token = await signSessionToken({ userId, tenantId });
+  resHeaders.append("Set-Cookie", buildSessionCookie(token));
+}
 
 export const tenantRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -42,8 +51,8 @@ export const tenantRouter = router({
       const dupe = await db.select().from(tenants).where(eq(tenants.slug, input.slug)).limit(1);
       if (dupe[0]) throw new TRPCError({ code: "CONFLICT", message: "Slug já em uso." });
 
-      return db.transaction(async (tx) => {
-        const [tenant] = await tx
+      const tenant = await db.transaction(async (tx) => {
+        const [t] = await tx
           .insert(tenants)
           .values({
             slug: input.slug,
@@ -57,13 +66,15 @@ export const tenantRouter = router({
           .returning();
         await tx.insert(userTenants).values({
           userId: ctx.session.userId,
-          tenantId: tenant.id,
+          tenantId: t.id,
           role: "owner",
         });
-        await tx.insert(tenantSettings).values({ tenantId: tenant.id });
-        await setSessionCookie({ userId: ctx.session.userId, tenantId: tenant.id });
-        return tenant;
+        await tx.insert(tenantSettings).values({ tenantId: t.id });
+        return t;
       });
+
+      await setActiveTenant(ctx.resHeaders, ctx.session.userId, tenant.id);
+      return tenant;
     }),
 
   switch: protectedProcedure
@@ -77,7 +88,7 @@ export const tenantRouter = router({
         )
         .limit(1);
       if (!link) throw new TRPCError({ code: "FORBIDDEN" });
-      await setSessionCookie({ userId: ctx.session.userId, tenantId: input.tenantId });
+      await setActiveTenant(ctx.resHeaders, ctx.session.userId, input.tenantId);
       return { ok: true };
     }),
 

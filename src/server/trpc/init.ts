@@ -10,13 +10,16 @@ import type { TenantCtx } from "@/server/lib/tenant-context";
 export type TrpcContext = {
   session: SessionPayload | null;
   tenant: TenantCtx | null;
+  /** Headers da Response — use append('Set-Cookie', …) para setar cookies. */
+  resHeaders: Headers;
 };
 
-export async function createContext(_opts?: FetchCreateContextFnOptions): Promise<TrpcContext> {
-  void _opts;
+export async function createContext(opts: FetchCreateContextFnOptions): Promise<TrpcContext> {
   const session = await getSessionFromCookies();
+  const resHeaders = opts.resHeaders;
+
   if (!session?.tenantId) {
-    return { session, tenant: null };
+    return { session, tenant: null, resHeaders };
   }
   const link = await db
     .select({ role: userTenants.role })
@@ -24,10 +27,14 @@ export async function createContext(_opts?: FetchCreateContextFnOptions): Promis
     .where(and(eq(userTenants.userId, session.userId), eq(userTenants.tenantId, session.tenantId)))
     .limit(1);
   if (!link[0]) {
-    return { session, tenant: null };
+    return { session, tenant: null, resHeaders };
   }
   const role = link[0].role as TenantCtx["role"];
-  return { session, tenant: { userId: session.userId, tenantId: session.tenantId, role } };
+  return {
+    session,
+    tenant: { userId: session.userId, tenantId: session.tenantId, role },
+    resHeaders,
+  };
 }
 
 const t = initTRPC.context<TrpcContext>().create({ transformer: superjson });
