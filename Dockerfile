@@ -3,7 +3,7 @@
 # Targets:
 #   dev     → hot-reload com npm run dev / worker:dev (docker compose)
 #   builder → instala deps + roda next build (standalone)
-#   runner  → imagem final do Next em produção (Coolify)
+#   runner  → imagem final do Next em produção (Coolify) — roda migrate + server
 #
 # Para o processo de workers em produção, use Dockerfile.worker (mais enxuto).
 
@@ -41,7 +41,13 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
+COPY --chown=nextjs:nodejs scripts/migrate-prod.cjs ./scripts/migrate-prod.cjs
+
+# `pg` é externo (não bundled pelo Next standalone). Garantimos instalação
+# defensiva por cima do package.json do standalone.
+RUN npm install --omit=dev --no-audit --no-fund --prefix /app pg@^8 \
+ && chown -R nextjs:nodejs /app/node_modules
 
 USER nextjs
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "node scripts/migrate-prod.cjs && node server.js"]
