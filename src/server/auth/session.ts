@@ -40,7 +40,10 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
  * retornam Response nativo (o caso do fetchRequestHandler do tRPC).
  */
 export function buildSessionCookie(token: string): string {
-  const secure = env.NODE_ENV === "production" ? "; Secure" : "";
+  // Secure só quando APP_URL é HTTPS. Browser/curl rejeitam cookie Secure
+  // em conexão HTTP, então fixar por APP_URL é mais robusto que por NODE_ENV
+  // (dev local: http, staging sslip.io: http, prod com domínio real: https).
+  const secure = env.APP_URL.startsWith("https://") ? "; Secure" : "";
   return `${env.SESSION_COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_TTL_SECONDS}${secure}`;
 }
 
