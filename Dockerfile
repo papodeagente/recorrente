@@ -19,11 +19,12 @@ RUN npm ci
 EXPOSE 3000
 
 # ---- BUILDER ----
+# NÃO setamos NODE_ENV=production aqui: precisamos das devDeps (tailwind,
+# postcss, typescript) durante o build. NODE_ENV=production só no runner.
 FROM base AS builder
-ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --include=dev
 COPY . .
 RUN npm run build
 
