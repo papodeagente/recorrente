@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button, Card, Field, Input } from "@/components/ui/primitives";
 import { trpc } from "@/lib/trpc";
@@ -35,6 +36,14 @@ export default function ConfiguracoesPage() {
         <h1 className="text-2xl font-semibold">Configurações</h1>
         <p className="text-sm text-zinc-500">Como a IA se comporta no seu negócio.</p>
       </header>
+
+      <Card className="flex items-center justify-between">
+        <div>
+          <div className="font-medium">WhatsApp (Z-API)</div>
+          <div className="text-xs text-zinc-500">Tokens e URL do webhook.</div>
+        </div>
+        <Link href="/configuracoes/whatsapp" className="text-sm text-emerald-700">configurar →</Link>
+      </Card>
 
       <Card>
         <form

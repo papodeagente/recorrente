@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button, Card, Field, Input, Textarea } from "@/components/ui/primitives";
 import { trpc } from "@/lib/trpc";
 
-type Tab = "receber" | "pagar" | "despesas";
+type Tab = "receber" | "pagar" | "despesas" | "fluxo";
 
 function brl(c: number): string {
   return (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -20,16 +20,17 @@ export default function FinanceiroPage() {
         <p className="text-sm text-zinc-500">Dinheiro a receber, a pagar e despesas do dia.</p>
       </header>
 
-      <div className="flex gap-2 border-b border-zinc-200">
+      <div className="flex gap-2 border-b border-zinc-200 overflow-x-auto">
         {([
           ["receber", "A receber"],
           ["pagar", "A pagar"],
           ["despesas", "Despesas"],
+          ["fluxo", "Fluxo de caixa"],
         ] as Array<[Tab, string]>).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`px-4 py-2 text-sm border-b-2 -mb-px ${
+            className={`px-4 py-2 text-sm border-b-2 -mb-px whitespace-nowrap ${
               tab === key ? "border-emerald-600 text-emerald-700 font-medium" : "border-transparent text-zinc-600"
             }`}
           >
@@ -41,6 +42,48 @@ export default function FinanceiroPage() {
       {tab === "receber" && <Receivables />}
       {tab === "pagar" && <Payables />}
       {tab === "despesas" && <Expenses />}
+      {tab === "fluxo" && <CashFlow />}
+    </div>
+  );
+}
+
+function CashFlow() {
+  const { data } = trpc.reports.cashflow.useQuery({ period: "month" });
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-3">
+        <Card><div className="text-[10px] uppercase text-zinc-500">Entrou no mês</div><div className="text-xl font-semibold text-emerald-700 mt-1">{brl(data?.inCents ?? 0)}</div></Card>
+        <Card><div className="text-[10px] uppercase text-zinc-500">Saiu no mês</div><div className="text-xl font-semibold text-red-700 mt-1">{brl(data?.outCents ?? 0)}</div></Card>
+        <Card className={(data?.balanceCents ?? 0) >= 0 ? "border-emerald-200" : "border-red-200"}>
+          <div className="text-[10px] uppercase text-zinc-500">Saldo</div>
+          <div className="text-xl font-semibold mt-1">{brl(data?.balanceCents ?? 0)}</div>
+        </Card>
+      </div>
+      <Card>
+        <h3 className="font-semibold mb-2">Últimas movimentações</h3>
+        {(data?.recent.length ?? 0) === 0 ? (
+          <p className="text-sm text-zinc-500">Sem movimentações ainda.</p>
+        ) : (
+          <ul className="divide-y divide-zinc-100 text-sm">
+            {data?.recent.map((p) => (
+              <li key={p.id} className="py-2 flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span>{p.direction === "in" ? "📥" : "📤"}</span>
+                  <div className="min-w-0">
+                    <div className="truncate">{p.notes || (p.direction === "in" ? "Entrada" : "Saída")}</div>
+                    <div className="text-xs text-zinc-500">
+                      {new Date(p.paidAt).toLocaleString("pt-BR")} · {p.paymentMethod ?? "—"} · {p.source}
+                    </div>
+                  </div>
+                </div>
+                <div className={`font-medium ${p.direction === "in" ? "text-emerald-700" : "text-red-700"}`}>
+                  {p.direction === "in" ? "+" : "−"} {brl(p.amountCents)}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }

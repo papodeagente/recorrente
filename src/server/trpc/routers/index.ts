@@ -6,6 +6,7 @@ import { contactsRouter } from "./contacts";
 import { dashboardRouter } from "./dashboard";
 import { expensesRouter, payablesRouter, receivablesRouter } from "./finance";
 import { productsRouter } from "./products";
+import { reportsRouter } from "./reports";
 import { salesRouter } from "./sales";
 import { settingsRouter } from "./settings";
 import { tasksRouter } from "./tasks";
@@ -24,6 +25,7 @@ export const appRouter = router({
   expenses: expensesRouter,
   tasks: tasksRouter,
   ai: aiRouter,
+  reports: reportsRouter,
   settings: settingsRouter,
 });
 

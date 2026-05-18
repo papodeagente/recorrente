@@ -10,6 +10,7 @@ import {
   saleItems,
   sales,
 } from "@/server/db/schema";
+import { desc as descOrder } from "drizzle-orm";
 import { tenantDb } from "@/server/lib/tenant-context";
 import { router, tenantReadProcedure, tenantWriteProcedure } from "@/server/trpc/init";
 
@@ -73,7 +74,19 @@ export const salesRouter = router({
         .select()
         .from(saleItems)
         .where(and(eq(saleItems.tenantId, ctx.tenant.tenantId), eq(saleItems.saleId, input.id)));
-      return { sale, items };
+      const contact = sale.contactId
+        ? await t.findFirst(contacts, eq(contacts.id, sale.contactId))
+        : null;
+      const pays = await t.raw
+        .select()
+        .from(payments)
+        .where(and(eq(payments.tenantId, ctx.tenant.tenantId), eq(payments.saleId, input.id)))
+        .orderBy(descOrder(payments.paidAt));
+      const recv = await t.raw
+        .select()
+        .from(receivables)
+        .where(and(eq(receivables.tenantId, ctx.tenant.tenantId), eq(receivables.saleId, input.id)));
+      return { sale, items, contact, payments: pays, receivables: recv };
     }),
 
   create: tenantWriteProcedure.input(createInput).mutation(async ({ ctx, input }) => {

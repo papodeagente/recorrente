@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Button, Card, Field, Input, Textarea } from "@/components/ui/primitives";
 import { trpc } from "@/lib/trpc";
@@ -40,6 +41,19 @@ export default function VendasPage() {
   }
 
   const total = items.reduce((a, it) => a + it.unitPriceCents * it.quantity, 0);
+
+  function EmptyState() {
+    return (
+      <Card className="text-center py-10">
+        <div className="text-3xl mb-2">🧾</div>
+        <p className="text-sm text-zinc-600 mb-3">Nenhuma venda registrada ainda.</p>
+        <p className="text-xs text-zinc-500">
+          Envie um áudio no WhatsApp: <em>&quot;vendi um corte para João por 50 no Pix&quot;</em><br/>
+          ou cadastre acima.
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -207,38 +221,37 @@ export default function VendasPage() {
 
       <div className="space-y-2">
         {list?.map((s) => (
-          <Card key={s.id}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-sm font-medium truncate">{s.contactName || "(sem cliente)"}</div>
-                <div className="text-xs text-zinc-500">
-                  {new Date(s.saleDate).toLocaleString("pt-BR")} · {s.source} · {s.paymentStatus}
-                  {Number(s.pendingAmountCents) > 0 && (
-                    <span className="text-red-700"> · {brl(Number(s.pendingAmountCents))} em aberto</span>
+          <Link key={s.id} href={`/vendas/${s.id}`}>
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">{s.contactName || "(sem cliente)"}</div>
+                  <div className="text-xs text-zinc-500">
+                    {new Date(s.saleDate).toLocaleString("pt-BR")} · {s.source} · {s.paymentStatus}
+                    {Number(s.pendingAmountCents) > 0 && (
+                      <span className="text-red-700"> · {brl(Number(s.pendingAmountCents))} em aberto</span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-semibold">{brl(Number(s.totalAmountCents))}</div>
+                  {s.saleStatus !== "cancelled" && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (window.confirm("Cancelar venda?")) cancel.mutate({ id: s.id });
+                      }}
+                      className="text-xs text-red-600"
+                    >
+                      cancelar
+                    </button>
                   )}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-lg font-semibold">{brl(Number(s.totalAmountCents))}</div>
-                {s.saleStatus !== "cancelled" && (
-                  <button
-                    onClick={() => {
-                      if (confirm("Cancelar venda?")) cancel.mutate({ id: s.id });
-                    }}
-                    className="text-xs text-red-600"
-                  >
-                    cancelar
-                  </button>
-                )}
-              </div>
-            </div>
-          </Card>
+            </Card>
+          </Link>
         ))}
-        {list && list.length === 0 && (
-          <p className="text-sm text-zinc-500 px-2">
-            Nenhuma venda. Manda uma mensagem no WhatsApp ou cadastra acima.
-          </p>
-        )}
+        {list && list.length === 0 && <EmptyState />}
       </div>
     </div>
   );
