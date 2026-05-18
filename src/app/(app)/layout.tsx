@@ -4,6 +4,8 @@ import { getSessionFromCookies } from "@/server/auth/session";
 
 const navItems = [
   { href: "/dashboard", label: "Visão geral" },
+  { href: "/customers", label: "Clientes" },
+  { href: "/visits", label: "Visitas" },
   { href: "/services", label: "Catálogo" },
   { href: "/settings", label: "Agente" },
   { href: "/templates", label: "Templates" },
