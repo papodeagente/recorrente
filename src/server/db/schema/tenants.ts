@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { check, index, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 export const tenants = pgTable(
@@ -7,7 +16,7 @@ export const tenants = pgTable(
   {
     id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
     slug: text("slug").notNull().unique(),
-    businessName: text("business_name").notNull(),
+    name: text("name").notNull(),
     businessType: text("business_type").notNull(),
     ownerUserId: text("owner_user_id")
       .notNull()
@@ -16,7 +25,6 @@ export const tenants = pgTable(
     zapiInstanceToken: text("zapi_instance_token"),
     zapiClientToken: text("zapi_client_token"),
     timezone: text("timezone").notNull().default("America/Sao_Paulo"),
-    planId: text("plan_id"),
     status: text("status").notNull().default("setup"),
     lgpdDataControllerEmail: text("lgpd_data_controller_email").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -30,7 +38,6 @@ export const tenants = pgTable(
     zapiInstanceUnique: uniqueIndex("idx_tenants_zapi_instance_id")
       .on(t.zapiInstanceId)
       .where(sql`${t.zapiInstanceId} IS NOT NULL`),
-    ownerIdx: index("idx_tenants_owner_user_id").on(t.ownerUserId),
   }),
 );
 
@@ -44,11 +51,12 @@ export const userTenants = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
     role: text("role").notNull().default("owner"),
+    permissions: jsonb("permissions").notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.userId, t.tenantId] }),
-    roleCheck: check("user_tenants_role_check", sql`${t.role} IN ('owner','admin','operator')`),
+    roleCheck: check("user_tenants_role_check", sql`${t.role} IN ('owner','manager','operator')`),
     tenantIdx: index("idx_user_tenants_tenant_id").on(t.tenantId),
   }),
 );

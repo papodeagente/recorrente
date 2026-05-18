@@ -1,10 +1,10 @@
 /**
- * Z-API — cliente minimalista para enviar mensagens via instância de um tenant.
+ * Z-API — cliente para envio e download de mídia.
  *
- * Doc Z-API: https://developer.z-api.io/
+ * Doc: https://developer.z-api.io/
  *
- * Cada tenant tem seu próprio par (instanceId, instanceToken, clientToken)
- * em `tenants.zapi_*`. Sempre carregue esses valores do banco antes de chamar.
+ * Cada tenant tem suas próprias credenciais em `tenants.zapi_*`. Sempre
+ * carregue do banco antes de chamar.
  */
 
 import { logger } from "@/server/lib/logger";
@@ -32,13 +32,12 @@ export async function sendText(
   const url = `${baseUrl(creds)}/send-text`;
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Client-Token": creds.clientToken,
-    },
+    headers: { "Content-Type": "application/json", "Client-Token": creds.clientToken },
     body: JSON.stringify({ phone, message }),
   });
-  const raw = (await res.json().catch(() => null)) as { messageId?: string; id?: string } | null;
+  const raw = (await res.json().catch(() => null)) as
+    | { messageId?: string; id?: string }
+    | null;
   if (!res.ok) {
     logger.warn({ status: res.status, raw }, "[zapi] send-text non-2xx");
     throw new Error(`Z-API send-text failed: ${res.status}`);
@@ -46,14 +45,24 @@ export async function sendText(
   return { zapiMessageId: raw?.messageId ?? raw?.id ?? null, raw };
 }
 
-/**
- * Verifica o token enviado pela Z-API no header do webhook.
- * O token compartilhado é configurado no painel da Z-API por instância e
- * persistido no tenant via `tenants.zapi_client_token`.
- */
 export function verifyWebhookToken(received: string | null, expected: string | null): boolean {
   if (!received || !expected) return false;
-  // Comparação simples; não há risco de timing significativo aqui dado o
-  // contexto, mas trocar por timingSafeEqual quando o volume crescer.
   return received === expected;
+}
+
+/**
+ * Baixa mídia anexada a uma mensagem da Z-API.
+ * O webhook do Z-API pode incluir URL pública direta da mídia (ex.:
+ * payload.audio.audioUrl, payload.image.imageUrl). Aqui aceitamos a URL
+ * pronta e fazemos o GET. Se sua instância requerer endpoint específico,
+ * estenda esta função.
+ */
+export async function downloadMedia(url: string): Promise<{ buffer: Buffer; mime: string | null }> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`failed to download media: ${res.status}`);
+  }
+  const mime = res.headers.get("content-type");
+  const arr = await res.arrayBuffer();
+  return { buffer: Buffer.from(arr), mime: mime ?? null };
 }

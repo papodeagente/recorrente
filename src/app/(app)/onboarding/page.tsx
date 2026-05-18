@@ -5,102 +5,124 @@ import { useState } from "react";
 import { Button, Card, Field, Input } from "@/components/ui/primitives";
 import { trpc } from "@/lib/trpc";
 
+const SEGMENTS: Array<{ key: string; label: string; emoji: string; desc: string }> = [
+  { key: "delivery", label: "Delivery", emoji: "🛵", desc: "Marmita, lanche, entrega" },
+  { key: "alimentacao", label: "Alimentação", emoji: "🍱", desc: "Lanchonete, marmitaria, food truck" },
+  { key: "barbearia", label: "Barbearia", emoji: "💈", desc: "Corte, barba, combo" },
+  { key: "beleza", label: "Beleza", emoji: "💅", desc: "Salão, manicure, sobrancelha" },
+  { key: "estetica", label: "Estética", emoji: "✨", desc: "Limpeza, procedimentos" },
+  { key: "loja", label: "Loja local", emoji: "🏪", desc: "Loja de bairro, produtos" },
+  { key: "servico", label: "Serviço", emoji: "🔧", desc: "Autônomo, prestador" },
+  { key: "outro", label: "Outro", emoji: "📦", desc: "Customizar depois" },
+];
+
+type Step = "business" | "products" | "zapi" | "done";
+
 export default function OnboardingPage() {
   const router = useRouter();
   const { data: me } = trpc.auth.me.useQuery();
-  const { data: tenants, refetch } = trpc.tenant.list.useQuery();
-  const currentTenant = trpc.tenant.current.useQuery(undefined, {
+  const { data: tenants, refetch: refetchTenants } = trpc.tenant.list.useQuery();
+  const createTenant = trpc.tenant.create.useMutation({ onSuccess: () => refetchTenants() });
+  const connect = trpc.tenant.connectZapi.useMutation({ onSuccess: () => setStep("done") });
+  const tenantCurrent = trpc.tenant.current.useQuery(undefined, {
     enabled: (tenants?.length ?? 0) > 0,
   });
 
-  const create = trpc.tenant.create.useMutation({
-    onSuccess: async () => {
-      await refetch();
-      await currentTenant.refetch();
-    },
-  });
-  const connect = trpc.tenant.connectZapi.useMutation({
-    onSuccess: () => router.push("/dashboard"),
-  });
+  const initial: Step = (tenants?.length ?? 0) > 0 ? (tenantCurrent.data?.zapiInstanceId ? "done" : "zapi") : "business";
+  const [step, setStep] = useState<Step>(initial);
 
-  const [step, setStep] = useState<"business" | "zapi">(tenants?.length ? "zapi" : "business");
-  const [form, setForm] = useState({
+  const [biz, setBiz] = useState({
+    name: "",
     slug: "",
-    businessName: "",
-    businessType: "barbearia",
-    lgpdEmail: me?.email ?? "",
+    segment: "delivery",
+    lgpdEmail: "",
   });
   const [zapi, setZapi] = useState({ instanceId: "", instanceToken: "", clientToken: "" });
 
   return (
-    <div className="max-w-xl mx-auto space-y-6">
+    <div className="max-w-xl mx-auto space-y-4">
       <header>
-        <h1 className="text-2xl font-semibold">Onboarding</h1>
-        <p className="text-sm text-zinc-500">2 passos · menos de 5 minutos.</p>
+        <h1 className="text-2xl font-semibold">Bem-vindo ao BOLSO</h1>
+        <p className="text-sm text-zinc-500">
+          3 passos curtos. Em menos de 5 minutos você está vendendo pelo WhatsApp.
+        </p>
       </header>
+
+      <Steps step={step} />
 
       {step === "business" && (
         <Card>
-          <h2 className="font-semibold mb-4">1. Seu negócio</h2>
+          <h2 className="font-semibold mb-3">1. Seu negócio</h2>
           <form
-            className="flex flex-col gap-4"
+            className="space-y-3"
             onSubmit={async (e) => {
               e.preventDefault();
-              await create.mutateAsync({
-                slug: form.slug,
-                businessName: form.businessName,
-                businessType: form.businessType,
-                lgpdDataControllerEmail: form.lgpdEmail || me?.email || "owner@example.com",
+              await createTenant.mutateAsync({
+                slug: biz.slug,
+                name: biz.name,
+                businessType: biz.segment as "delivery" | "alimentacao" | "barbearia" | "beleza" | "estetica" | "loja" | "servico" | "outro",
+                lgpdDataControllerEmail: biz.lgpdEmail || me?.email || "owner@example.com",
+                seedProducts: true,
               });
-              setStep("zapi");
+              setStep("products");
             }}
           >
             <Field label="Nome do negócio">
-              <Input
-                required
-                value={form.businessName}
-                onChange={(e) => setForm({ ...form, businessName: e.target.value })}
-              />
+              <Input required value={biz.name} onChange={(e) => setBiz({ ...biz, name: e.target.value })} />
             </Field>
-            <Field label="Slug (URL)" hint="Letras minúsculas, números e hífen.">
-              <Input
-                required
-                pattern="[a-z0-9-]+"
-                value={form.slug}
-                onChange={(e) => setForm({ ...form, slug: e.target.value })}
-              />
+            <Field label="Identificador (URL)" hint="Letras minúsculas, números, hífen.">
+              <Input required pattern="[a-z0-9-]+" value={biz.slug} onChange={(e) => setBiz({ ...biz, slug: e.target.value })} />
             </Field>
             <Field label="Segmento">
-              <Input
-                required
-                value={form.businessType}
-                onChange={(e) => setForm({ ...form, businessType: e.target.value })}
-              />
+              <div className="grid grid-cols-2 gap-2">
+                {SEGMENTS.map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => setBiz({ ...biz, segment: s.key })}
+                    className={`text-left rounded-lg border p-3 ${
+                      biz.segment === s.key ? "border-emerald-600 bg-emerald-50" : "border-zinc-200"
+                    }`}
+                  >
+                    <div className="text-xl">{s.emoji}</div>
+                    <div className="text-sm font-medium">{s.label}</div>
+                    <div className="text-xs text-zinc-500">{s.desc}</div>
+                  </button>
+                ))}
+              </div>
             </Field>
-            <Field label="E-mail responsável LGPD" hint="Aparece no rodapé das mensagens iniciais.">
-              <Input
-                type="email"
-                required
-                value={form.lgpdEmail}
-                onChange={(e) => setForm({ ...form, lgpdEmail: e.target.value })}
-              />
+            <Field label="E-mail responsável (LGPD)">
+              <Input type="email" required value={biz.lgpdEmail || me?.email || ""} onChange={(e) => setBiz({ ...biz, lgpdEmail: e.target.value })} />
             </Field>
-            {create.error && <p className="text-sm text-red-600">{create.error.message}</p>}
-            <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? "Criando…" : "Continuar"}
+            {createTenant.error && <p className="text-sm text-red-600">{createTenant.error.message}</p>}
+            <Button type="submit" disabled={createTenant.isPending} className="w-full">
+              {createTenant.isPending ? "Criando…" : "Continuar"}
             </Button>
           </form>
         </Card>
       )}
 
+      {step === "products" && (
+        <Card>
+          <h2 className="font-semibold mb-2">2. Produtos e serviços</h2>
+          <p className="text-sm text-zinc-500 mb-3">
+            Já cadastramos uma base inicial baseada no seu segmento. Você ajusta depois.
+          </p>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => router.push("/produtos")}>Ver e editar produtos</Button>
+            <Button onClick={() => setStep("zapi")}>Pular pra conectar WhatsApp →</Button>
+          </div>
+        </Card>
+      )}
+
       {step === "zapi" && (
         <Card>
-          <h2 className="font-semibold mb-4">2. Conectar WhatsApp (Z-API)</h2>
-          <p className="text-sm text-zinc-500 mb-4">
-            Crie uma instância em <a className="text-emerald-700" href="https://app.z-api.io" target="_blank">z-api.io</a> e cole os tokens abaixo.
+          <h2 className="font-semibold mb-2">3. Conectar WhatsApp (Z-API)</h2>
+          <p className="text-sm text-zinc-500 mb-3">
+            Crie uma instância em <a className="text-emerald-700" href="https://app.z-api.io" target="_blank">z-api.io</a> e cole os tokens.
           </p>
           <form
-            className="flex flex-col gap-4"
+            className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
               connect.mutate({
@@ -116,16 +138,53 @@ export default function OnboardingPage() {
             <Field label="Instance Token">
               <Input required value={zapi.instanceToken} onChange={(e) => setZapi({ ...zapi, instanceToken: e.target.value })} />
             </Field>
-            <Field label="Client Token (Account)" hint="Usado para validar webhooks.">
+            <Field label="Client Token (Account)" hint="Z-API envia este header em cada webhook — usamos pra validar.">
               <Input required value={zapi.clientToken} onChange={(e) => setZapi({ ...zapi, clientToken: e.target.value })} />
             </Field>
             {connect.error && <p className="text-sm text-red-600">{connect.error.message}</p>}
-            <Button type="submit" disabled={connect.isPending}>
-              {connect.isPending ? "Conectando…" : "Conectar e ir para o painel"}
+            <Button type="submit" disabled={connect.isPending} className="w-full">
+              {connect.isPending ? "Conectando…" : "Conectar e ir pro painel"}
+            </Button>
+            <Button type="button" variant="ghost" className="w-full" onClick={() => router.push("/dashboard")}>
+              Configurar depois
             </Button>
           </form>
         </Card>
       )}
+
+      {step === "done" && (
+        <Card className="border-emerald-300 bg-emerald-50">
+          <h2 className="font-semibold">Tudo pronto!</h2>
+          <p className="text-sm">
+            Agora envie pelo WhatsApp: <em>&quot;vendi um corte para João por 50 reais no Pix&quot;</em>.
+          </p>
+          <div className="mt-3">
+            <Button onClick={() => router.push("/dashboard")}>Ir pro painel</Button>
+          </div>
+        </Card>
+      )}
     </div>
+  );
+}
+
+function Steps({ step }: { step: Step }) {
+  const order: Step[] = ["business", "products", "zapi", "done"];
+  const labels: Record<Step, string> = {
+    business: "Negócio",
+    products: "Produtos",
+    zapi: "WhatsApp",
+    done: "Pronto",
+  };
+  return (
+    <ol className="flex gap-1 text-xs">
+      {order.slice(0, 3).map((s, i) => {
+        const active = order.indexOf(step) >= i;
+        return (
+          <li key={s} className={`flex-1 rounded-full h-1.5 ${active ? "bg-emerald-600" : "bg-zinc-200"}`}>
+            <span className="sr-only">{labels[s]}</span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

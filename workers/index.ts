@@ -1,60 +1,45 @@
 /**
- * Worker bootstrap — roda em processo separado do Next.js.
+ * Worker bootstrap (BOLSO).
  *
- * Mapeia cada fila ao handler real (Pilar 1). Filas sem lógica implementada
- * ainda usam stub que apenas loga (Pilar 2/3/4).
+ * Apenas 2 filas têm processador real:
+ *   - whatsapp:inbound  → pipeline IA (texto/áudio/imagem)
+ *   - whatsapp:outbound → envia via Z-API (rate-limit 1 msg/4s)
+ *
+ * As outras 4 filas do registry (actions:scheduler, actions:dispatcher,
+ * agent:reason, metrics:rollup) não têm produtores neste momento — entram
+ * em pilares futuros (resumo diário, cobrança automática, etc.).
  */
 
 import "dotenv/config";
-import { Worker, type WorkerOptions, type Job } from "bullmq";
+import { Worker, type Job, type WorkerOptions } from "bullmq";
 import { redis } from "@/server/queues/connection";
 import { QUEUES, type QueueName } from "@/server/queues";
 import { logger } from "@/server/lib/logger";
 import { processInbound } from "./handlers/whatsapp-inbound";
-import { processDispatch } from "./handlers/actions-dispatcher";
-import { processAgentReason } from "./handlers/agent-reason";
 import { processOutbound } from "./handlers/whatsapp-outbound";
 
-const baseOptions: WorkerOptions = { connection: redis, concurrency: 5 };
+const base: WorkerOptions = { connection: redis, concurrency: 4 };
 
-type HandlerEntry = {
+type Entry = {
   name: QueueName;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handler: (job: Job<any>) => Promise<unknown>;
   options?: Partial<WorkerOptions>;
 };
 
-const handlers: HandlerEntry[] = [
-  { name: QUEUES.whatsappInbound, handler: processInbound },
-  { name: QUEUES.actionsDispatcher, handler: processDispatch },
-  { name: QUEUES.agentReason, handler: processAgentReason, options: { concurrency: 2 } },
+const handlers: Entry[] = [
+  { name: QUEUES.whatsappInbound, handler: processInbound, options: { concurrency: 2 } },
   {
     name: QUEUES.whatsappOutbound,
     handler: processOutbound,
-    // Rate limit §9: 1 mensagem a cada 4s POR ESTA INSTÂNCIA DO WORKER.
-    // Vários workers escalando exigem limiter Redis por tenant — futuro.
     options: { concurrency: 1, limiter: { max: 1, duration: 4_000 } },
-  },
-  {
-    name: QUEUES.actionsScheduler,
-    handler: async (job) => {
-      logger.info({ jobId: job.id, data: job.data }, "[stub:actions:scheduler]");
-      return { stub: true };
-    },
-  },
-  {
-    name: QUEUES.metricsRollup,
-    handler: async (job) => {
-      logger.info({ jobId: job.id, data: job.data }, "[stub:metrics:rollup]");
-      return { stub: true };
-    },
   },
 ];
 
-function start({ name, handler, options }: HandlerEntry): Worker {
-  const w = new Worker(name, handler, { ...baseOptions, ...options });
+function start({ name, handler, options }: Entry): Worker {
+  const w = new Worker(name, handler, { ...base, ...options });
   w.on("ready", () => logger.info({ queue: name }, "[worker] ready"));
-  w.on("active", (job) => logger.info({ queue: name, jobId: job.id }, "[worker] active"));
+  w.on("active", (job) => logger.debug({ queue: name, jobId: job.id }, "[worker] active"));
   w.on("completed", (job, result) =>
     logger.info({ queue: name, jobId: job.id, result }, "[worker] completed"),
   );
@@ -68,7 +53,6 @@ function start({ name, handler, options }: HandlerEntry): Worker {
 async function main(): Promise<void> {
   logger.info({ queues: handlers.map((h) => h.name) }, "[worker] starting");
   const workers = handlers.map(start);
-
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "[worker] shutting down");
     await Promise.all(workers.map((w) => w.close()));

@@ -15,8 +15,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "RECORRENTE",
-  description: "Agente de IA + CRM enxuto para pequenos negócios locais",
+  title: "BOLSO — CRM de bolso pra pequenos negócios",
+  description: "Vende, fala no WhatsApp, e o BOLSO organiza vendas, clientes, cobranças e despesas com IA.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

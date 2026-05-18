@@ -43,6 +43,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
 COPY --chown=nextjs:nodejs scripts/migrate-prod.cjs ./scripts/migrate-prod.cjs
+COPY --chown=nextjs:nodejs scripts/reset-db.cjs ./scripts/reset-db.cjs
+
+# Storage local para áudio/imagem do WhatsApp. Monte um volume Coolify aqui
+# em produção (/app/storage) para persistir entre restarts.
+RUN mkdir -p /app/storage && chown -R nextjs:nodejs /app/storage
 
 # `pg` é externo (não bundled pelo Next standalone). Garantimos instalação
 # defensiva por cima do package.json do standalone.

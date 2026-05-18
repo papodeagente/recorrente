@@ -3,14 +3,37 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { buildSessionCookie, signSessionToken } from "@/server/auth/session";
 import { db } from "@/server/db/client";
-import { tenantSettings, tenants, userTenants } from "@/server/db/schema";
-import { protectedProcedure, router, tenantReadProcedure, tenantWriteProcedure } from "@/server/trpc/init";
+import {
+  businessSettings,
+  categories,
+  products,
+  tenants,
+  userTenants,
+} from "@/server/db/schema";
+import { defaultCategoriesFor, suggestedProductsFor, type SegmentKey } from "@/server/lib/segments";
+import {
+  protectedProcedure,
+  router,
+  tenantReadProcedure,
+  tenantWriteProcedure,
+} from "@/server/trpc/init";
 
 const slugRule = z
   .string()
   .min(3)
   .max(40)
   .regex(/^[a-z0-9-]+$/, "Apenas letras minúsculas, números e hífen.");
+
+const segmentRule = z.enum([
+  "delivery",
+  "alimentacao",
+  "barbearia",
+  "beleza",
+  "estetica",
+  "loja",
+  "servico",
+  "outro",
+]);
 
 async function setActiveTenant(
   resHeaders: Headers,
@@ -27,7 +50,7 @@ export const tenantRouter = router({
       .select({
         id: tenants.id,
         slug: tenants.slug,
-        businessName: tenants.businessName,
+        name: tenants.name,
         businessType: tenants.businessType,
         status: tenants.status,
         role: userTenants.role,
@@ -41,10 +64,11 @@ export const tenantRouter = router({
     .input(
       z.object({
         slug: slugRule,
-        businessName: z.string().min(1).max(120),
-        businessType: z.string().min(1).max(60),
+        name: z.string().min(1).max(120),
+        businessType: segmentRule,
         lgpdDataControllerEmail: z.string().email(),
         timezone: z.string().default("America/Sao_Paulo"),
+        seedProducts: z.boolean().default(true),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -56,7 +80,7 @@ export const tenantRouter = router({
           .insert(tenants)
           .values({
             slug: input.slug,
-            businessName: input.businessName,
+            name: input.name,
             businessType: input.businessType,
             ownerUserId: ctx.session.userId,
             lgpdDataControllerEmail: input.lgpdDataControllerEmail,
@@ -64,12 +88,48 @@ export const tenantRouter = router({
             status: "setup",
           })
           .returning();
+
         await tx.insert(userTenants).values({
           userId: ctx.session.userId,
           tenantId: t.id,
           role: "owner",
         });
-        await tx.insert(tenantSettings).values({ tenantId: t.id });
+        await tx.insert(businessSettings).values({ tenantId: t.id });
+
+        const cats = defaultCategoriesFor(input.businessType as SegmentKey);
+        const catRows = [
+          ...cats.income.map((name, i) => ({
+            tenantId: t.id,
+            kind: "income",
+            name,
+            isDefault: true,
+            sortOrder: i,
+          })),
+          ...cats.expense.map((name, i) => ({
+            tenantId: t.id,
+            kind: "expense",
+            name,
+            isDefault: true,
+            sortOrder: i,
+          })),
+        ];
+        if (catRows.length > 0) await tx.insert(categories).values(catRows);
+
+        if (input.seedProducts) {
+          const suggested = suggestedProductsFor(input.businessType as SegmentKey);
+          if (suggested.length > 0) {
+            await tx.insert(products).values(
+              suggested.map((p, i) => ({
+                tenantId: t.id,
+                name: p.name,
+                type: p.type,
+                defaultPriceCents: p.defaultPriceCents,
+                aliases: p.aliases,
+                sortOrder: i,
+              })),
+            );
+          }
+        }
         return t;
       });
 
@@ -93,11 +153,7 @@ export const tenantRouter = router({
     }),
 
   current: tenantReadProcedure.query(async ({ ctx }) => {
-    const [tenant] = await db
-      .select()
-      .from(tenants)
-      .where(eq(tenants.id, ctx.tenant.tenantId))
-      .limit(1);
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, ctx.tenant.tenantId)).limit(1);
     return tenant ?? null;
   }),
 

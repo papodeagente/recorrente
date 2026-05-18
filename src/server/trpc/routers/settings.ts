@@ -1,50 +1,51 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { tenantSettings } from "@/server/db/schema";
+import { businessSettings } from "@/server/db/schema";
 import { tenantDb } from "@/server/lib/tenant-context";
 import { router, tenantReadProcedure, tenantWriteProcedure } from "@/server/trpc/init";
 
-const businessHoursDay = z.object({
+const dayHours = z.object({
   open: z.string().regex(/^\d{2}:\d{2}$/),
   close: z.string().regex(/^\d{2}:\d{2}$/),
 });
 
 const businessHoursSchema = z.object({
-  mon: businessHoursDay.nullable(),
-  tue: businessHoursDay.nullable(),
-  wed: businessHoursDay.nullable(),
-  thu: businessHoursDay.nullable(),
-  fri: businessHoursDay.nullable(),
-  sat: businessHoursDay.nullable(),
-  sun: businessHoursDay.nullable(),
+  mon: dayHours.nullable(),
+  tue: dayHours.nullable(),
+  wed: dayHours.nullable(),
+  thu: dayHours.nullable(),
+  fri: dayHours.nullable(),
+  sat: dayHours.nullable(),
+  sun: dayHours.nullable(),
 });
 
 const updateInput = z.object({
-  agentPersonaName: z.string().min(1).max(60).optional(),
-  agentTone: z.enum(["amigavel", "profissional", "descolado"]).optional(),
+  aiPersonaName: z.string().min(1).max(60).optional(),
+  aiTone: z.enum(["amigavel", "profissional", "descolado"]).optional(),
+  aiAutoConfirmBelowCents: z.number().int().nonnegative().optional(),
+  aiAlwaysConfirmAboveCents: z.number().int().nonnegative().optional(),
+  aiAlwaysConfirmNewCustomer: z.boolean().optional(),
+  aiAlwaysConfirmReceiptImage: z.boolean().optional(),
+  aiAllowAudioAutoCreate: z.boolean().optional(),
+  aiCustomVocabulary: z.record(z.string(), z.string()).optional(),
   businessHours: businessHoursSchema.optional(),
-  recoveryMessageTemplate: z.string().max(2000).nullable().optional(),
-  referralRewardText: z.string().max(500).nullable().optional(),
-  referralEnabled: z.boolean().optional(),
-  autoPauseOnHumanReplyHours: z.number().int().min(0).max(168).optional(),
+  dailySummaryEnabled: z.boolean().optional(),
+  dailySummaryAtHour: z.number().int().min(0).max(23).optional(),
 });
 
 export const settingsRouter = router({
   get: tenantReadProcedure.query(async ({ ctx }) => {
-    const t = tenantDb(ctx.tenant.tenantId);
-    const [row] = await t.raw
-      .select()
-      .from(tenantSettings)
-      .where(eq(tenantSettings.tenantId, ctx.tenant.tenantId))
-      .limit(1);
-    return row ?? null;
+    return tenantDb(ctx.tenant.tenantId).findFirst(
+      businessSettings,
+      eq(businessSettings.tenantId, ctx.tenant.tenantId),
+    );
   }),
 
   update: tenantWriteProcedure.input(updateInput).mutation(async ({ ctx, input }) => {
     const [row] = await tenantDb(ctx.tenant.tenantId).update(
-      tenantSettings,
+      businessSettings,
       { ...input, updatedAt: new Date() },
-      eq(tenantSettings.tenantId, ctx.tenant.tenantId),
+      eq(businessSettings.tenantId, ctx.tenant.tenantId),
     );
     return row;
   }),

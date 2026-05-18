@@ -13,6 +13,11 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY workers ./workers
 COPY drizzle ./drizzle
+COPY scripts ./scripts
+
+# Storage local para áudio/imagem do WhatsApp.
+# Monte o MESMO volume do app web em /app/storage para compartilhar mídia.
+RUN mkdir -p /app/storage
 
 ENV RUNTIME_ROLE=worker
 CMD ["npx", "tsx", "workers/index.ts"]

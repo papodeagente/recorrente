@@ -1,18 +1,30 @@
 import { router } from "@/server/trpc/init";
+import { aiRouter } from "./ai";
 import { authRouter } from "./auth";
-import { customersRouter } from "./customers";
-import { servicesRouter } from "./services";
+import { categoriesRouter } from "./categories";
+import { contactsRouter } from "./contacts";
+import { dashboardRouter } from "./dashboard";
+import { expensesRouter, payablesRouter, receivablesRouter } from "./finance";
+import { productsRouter } from "./products";
+import { salesRouter } from "./sales";
 import { settingsRouter } from "./settings";
+import { tasksRouter } from "./tasks";
 import { tenantRouter } from "./tenant";
-import { visitsRouter } from "./visits";
 
 export const appRouter = router({
   auth: authRouter,
   tenant: tenantRouter,
-  services: servicesRouter,
+  dashboard: dashboardRouter,
+  contacts: contactsRouter,
+  products: productsRouter,
+  categories: categoriesRouter,
+  sales: salesRouter,
+  receivables: receivablesRouter,
+  payables: payablesRouter,
+  expenses: expensesRouter,
+  tasks: tasksRouter,
+  ai: aiRouter,
   settings: settingsRouter,
-  customers: customersRouter,
-  visits: visitsRouter,
 });
 
 export type AppRouter = typeof appRouter;
