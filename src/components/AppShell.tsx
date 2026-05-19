@@ -4,32 +4,32 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/cn";
+import { useMe } from "@/lib/useMe";
 
-const SIDEBAR = [
+const SIDEBAR_BASE = [
   { href: "/dashboard", label: "Início", emoji: "🏠" },
   { href: "/clientes", label: "Clientes", emoji: "👥" },
   { href: "/vendas", label: "Vendas", emoji: "🧾" },
-  { href: "/financeiro", label: "Financeiro", emoji: "💰" },
+  { href: "/financeiro", label: "Financeiro", emoji: "💰", perm: "view_expenses" as const },
   { href: "/pendentes", label: "Pendentes IA", emoji: "⏳" },
-  { href: "/relatorios", label: "Relatórios", emoji: "📊" },
+  { href: "/relatorios", label: "Relatórios", emoji: "📊", perm: "view_reports" as const },
   { href: "/produtos", label: "Produtos", emoji: "📦" },
   { href: "/tarefas", label: "Tarefas", emoji: "✅" },
   { href: "/ia", label: "WhatsApp IA", emoji: "💬" },
   { href: "/configuracoes", label: "Config", emoji: "⚙️" },
 ];
 
-// 5 abas principais no mobile bottom-nav
-const MOBILE_TABS = [
+const MOBILE_BASE = [
   { href: "/dashboard", label: "Início", emoji: "🏠" },
   { href: "/vendas", label: "Vendas", emoji: "🧾" },
-  { href: "/financeiro", label: "Dinheiro", emoji: "💰" },
+  { href: "/financeiro", label: "Dinheiro", emoji: "💰", perm: "view_expenses" as const },
   { href: "/clientes", label: "Clientes", emoji: "👥" },
   { href: "/ia", label: "WhatsApp", emoji: "💬" },
 ];
 
 const QUICK_ACTIONS = [
   { href: "/vendas", label: "Nova venda", emoji: "🧾" },
-  { href: "/financeiro", label: "Nova despesa", emoji: "💸" },
+  { href: "/financeiro", label: "Nova despesa", emoji: "💸", perm: "view_expenses" as const },
   { href: "/clientes", label: "Novo cliente", emoji: "👤" },
   { href: "/tarefas", label: "Nova tarefa", emoji: "✅" },
 ];
@@ -43,19 +43,21 @@ export function AppShell({
 }) {
   const pathname = usePathname() ?? "";
   const [fabOpen, setFabOpen] = useState(false);
+  const { can } = useMe();
+
+  const sidebar = SIDEBAR_BASE.filter((i) => !i.perm || can(i.perm));
+  const mobileTabs = MOBILE_BASE.filter((i) => !i.perm || can(i.perm));
+  const quick = QUICK_ACTIONS.filter((i) => !i.perm || can(i.perm));
 
   return (
     <div className="min-h-screen flex bg-zinc-50">
-      {/* Sidebar — desktop apenas */}
       <aside className="hidden md:flex md:flex-col w-[220px] border-r border-zinc-200 bg-white">
         <div className="px-4 py-4 flex items-center gap-2 border-b border-zinc-200">
           <span className="text-xl">📒</span>
-          <Link href="/dashboard" className="font-bold text-emerald-700 tracking-tight">
-            BOLSO
-          </Link>
+          <Link href="/dashboard" className="font-bold text-emerald-700 tracking-tight">BOLSO</Link>
         </div>
         <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto">
-          {SIDEBAR.map((item) => {
+          {sidebar.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link
@@ -83,7 +85,6 @@ export function AppShell({
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar mobile */}
         <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-zinc-200">
           <Link href="/dashboard" className="flex items-center gap-2 font-bold text-emerald-700">
             <span>📒</span> BOLSO
@@ -95,14 +96,13 @@ export function AppShell({
           )}
         </header>
 
-        {/* Conteúdo */}
         <main className="flex-1 p-4 md:p-6 max-w-6xl w-full md:mx-auto pb-24 md:pb-6">
           {children}
         </main>
 
-        {/* Bottom-nav mobile */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-zinc-200 grid grid-cols-5 z-30">
-          {MOBILE_TABS.map((item) => {
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-zinc-200 grid z-30"
+             style={{ gridTemplateColumns: `repeat(${mobileTabs.length}, 1fr)` }}>
+          {mobileTabs.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link
@@ -120,11 +120,10 @@ export function AppShell({
           })}
         </nav>
 
-        {/* FAB mobile */}
         <div className="md:hidden fixed right-4 bottom-20 z-40">
           {fabOpen && (
             <div className="mb-2 flex flex-col items-end gap-2">
-              {QUICK_ACTIONS.map((q) => (
+              {quick.map((q) => (
                 <Link
                   key={q.label}
                   href={q.href}

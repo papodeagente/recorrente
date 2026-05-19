@@ -61,7 +61,7 @@ export default function OnboardingPage() {
                 slug: biz.slug,
                 name: biz.name,
                 businessType: biz.segment as "delivery" | "alimentacao" | "barbearia" | "beleza" | "estetica" | "loja" | "servico" | "outro",
-                lgpdDataControllerEmail: biz.lgpdEmail || me?.email || "owner@example.com",
+                lgpdDataControllerEmail: biz.lgpdEmail || me?.user?.email || "owner@example.com",
                 seedProducts: true,
               });
               setStep("products");
@@ -92,7 +92,7 @@ export default function OnboardingPage() {
               </div>
             </Field>
             <Field label="E-mail responsável (LGPD)">
-              <Input type="email" required value={biz.lgpdEmail || me?.email || ""} onChange={(e) => setBiz({ ...biz, lgpdEmail: e.target.value })} />
+              <Input type="email" required value={biz.lgpdEmail || me?.user?.email || ""} onChange={(e) => setBiz({ ...biz, lgpdEmail: e.target.value })} />
             </Field>
             {createTenant.error && <p className="text-sm text-red-600">{createTenant.error.message}</p>}
             <Button type="submit" disabled={createTenant.isPending} className="w-full">

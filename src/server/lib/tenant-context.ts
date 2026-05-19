@@ -16,10 +16,54 @@ import { and, eq, type SQL } from "drizzle-orm";
 import type { AnyPgTable, PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/server/db/client";
 
+export type TenantRole = "owner" | "manager" | "operator";
+
+export type TenantPermissions = {
+  view_revenue: boolean;
+  view_profit: boolean;
+  view_expenses: boolean;
+  view_reports: boolean;
+  manage_users: boolean;
+};
+
+export const DEFAULT_PERMISSIONS: Record<TenantRole, TenantPermissions> = {
+  owner: {
+    view_revenue: true,
+    view_profit: true,
+    view_expenses: true,
+    view_reports: true,
+    manage_users: true,
+  },
+  manager: {
+    view_revenue: true,
+    view_profit: true,
+    view_expenses: true,
+    view_reports: true,
+    manage_users: false,
+  },
+  operator: {
+    view_revenue: false,
+    view_profit: false,
+    view_expenses: false,
+    view_reports: false,
+    manage_users: false,
+  },
+};
+
+export function effectivePermissions(
+  role: TenantRole,
+  overrides: Partial<TenantPermissions> | null | undefined,
+): TenantPermissions {
+  // Owner ignora overrides — sempre vê tudo.
+  if (role === "owner") return DEFAULT_PERMISSIONS.owner;
+  return { ...DEFAULT_PERMISSIONS[role], ...(overrides ?? {}) };
+}
+
 export type TenantCtx = {
   userId: string;
   tenantId: string;
-  role: "owner" | "admin" | "operator";
+  role: TenantRole;
+  permissions: TenantPermissions;
 };
 
 export function getTenantId(ctx: { tenant: TenantCtx | null }): string {

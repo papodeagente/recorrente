@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/primitives";
 import { trpc } from "@/lib/trpc";
+import { useMe } from "@/lib/useMe";
 
 function brl(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -25,22 +26,23 @@ export default function DashboardPage() {
   const { data: kpis } = trpc.dashboard.kpis.useQuery();
   const { data: msgs } = trpc.dashboard.recentMessages.useQuery();
   const { data: attention } = trpc.dashboard.attention.useQuery();
+  const { can } = useMe();
 
   const greeting = `Olá. Seu negócio hoje${tenant?.name ? ` — ${tenant.name}` : ""}`;
 
   const cards = [
-    { label: "Vendido hoje", value: brl(kpis?.vendidoHojeCents ?? 0), hint: `${kpis?.vendasHojeCount ?? 0} venda(s)` },
-    { label: "Recebido hoje", value: brl(kpis?.recebidoHojeCents ?? 0) },
-    { label: "A receber hoje", value: brl(kpis?.aReceberHojeCents ?? 0) },
-    {
+    can("view_revenue") && { label: "Vendido hoje", value: brl(kpis?.vendidoHojeCents ?? 0), hint: `${kpis?.vendasHojeCount ?? 0} venda(s)` },
+    can("view_revenue") && { label: "Recebido hoje", value: brl(kpis?.recebidoHojeCents ?? 0) },
+    can("view_revenue") && { label: "A receber hoje", value: brl(kpis?.aReceberHojeCents ?? 0) },
+    can("view_revenue") && {
       label: "Em atraso",
       value: brl(kpis?.atrasadoCents ?? 0),
       hint: `${kpis?.atrasadoCount ?? 0} pessoa(s)`,
       bad: (kpis?.atrasadoCents ?? 0) > 0,
     },
-    { label: "A pagar hoje", value: brl(kpis?.aPagarHojeCents ?? 0), hint: `${kpis?.aPagarHojeCount ?? 0} conta(s)` },
+    can("view_expenses") && { label: "A pagar hoje", value: brl(kpis?.aPagarHojeCents ?? 0), hint: `${kpis?.aPagarHojeCount ?? 0} conta(s)` },
     { label: "Pendências IA", value: String(kpis?.pendenciasIaCount ?? 0), hint: "aguardando confirmar" },
-  ];
+  ].filter(Boolean) as Array<{ label: string; value: string; hint?: string; bad?: boolean }>;
 
   return (
     <div className="space-y-6">

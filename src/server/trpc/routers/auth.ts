@@ -53,6 +53,11 @@ export const authRouter = router({
       .from(users)
       .where(eq(users.id, ctx.session.userId))
       .limit(1);
-    return user ?? null;
+    return {
+      user: user ?? null,
+      tenant: ctx.tenant
+        ? { id: ctx.tenant.tenantId, role: ctx.tenant.role, permissions: ctx.tenant.permissions }
+        : null,
+    };
   }),
 });

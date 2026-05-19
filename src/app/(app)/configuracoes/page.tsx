@@ -37,13 +37,29 @@ export default function ConfiguracoesPage() {
         <p className="text-sm text-zinc-500">Como a IA se comporta no seu negócio.</p>
       </header>
 
-      <Card className="flex items-center justify-between">
-        <div>
-          <div className="font-medium">WhatsApp (Z-API)</div>
-          <div className="text-xs text-zinc-500">Tokens e URL do webhook.</div>
-        </div>
-        <Link href="/configuracoes/whatsapp" className="text-sm text-emerald-700">configurar →</Link>
-      </Card>
+      <div className="grid md:grid-cols-3 gap-3">
+        <Link href="/configuracoes/whatsapp">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+            <div className="text-2xl mb-1">💬</div>
+            <div className="font-medium">WhatsApp (Z-API)</div>
+            <div className="text-xs text-zinc-500">Tokens e URL do webhook.</div>
+          </Card>
+        </Link>
+        <Link href="/configuracoes/usuarios">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+            <div className="text-2xl mb-1">👥</div>
+            <div className="font-medium">Usuários</div>
+            <div className="text-xs text-zinc-500">Convide gerentes e operadores.</div>
+          </Card>
+        </Link>
+        <Link href="/configuracoes/auditoria">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+            <div className="text-2xl mb-1">🔍</div>
+            <div className="font-medium">Auditoria</div>
+            <div className="text-xs text-zinc-500">Quem fez o quê, quando.</div>
+          </Card>
+        </Link>
+      </div>
 
       <Card>
         <form

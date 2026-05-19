@@ -96,19 +96,21 @@ export const dashboardRouter = router({
         ? Number(salesToday.total ?? 0) / Number(salesToday.count)
         : 0;
 
+    const canRevenue = ctx.tenant.permissions.view_revenue;
+    const canExpenses = ctx.tenant.permissions.view_expenses;
     return {
-      vendidoHojeCents: Number(salesToday.total ?? 0),
-      recebidoHojeCents: Number(salesToday.paid ?? 0),
-      aReceberHojeCents: Number(recvDueToday.total ?? 0),
-      atrasadoCents: Number(recvOverdue.total ?? 0),
-      atrasadoCount: Number(recvOverdue.count ?? 0),
-      aPagarHojeCents: Number(payDueToday.total ?? 0),
-      aPagarHojeCount: Number(payDueToday.count ?? 0),
-      despesasDoMesCents: Number(expMonth.total ?? 0),
+      vendidoHojeCents: canRevenue ? Number(salesToday.total ?? 0) : 0,
+      recebidoHojeCents: canRevenue ? Number(salesToday.paid ?? 0) : 0,
+      aReceberHojeCents: canRevenue ? Number(recvDueToday.total ?? 0) : 0,
+      atrasadoCents: canRevenue ? Number(recvOverdue.total ?? 0) : 0,
+      atrasadoCount: canRevenue ? Number(recvOverdue.count ?? 0) : 0,
+      aPagarHojeCents: canExpenses ? Number(payDueToday.total ?? 0) : 0,
+      aPagarHojeCount: canExpenses ? Number(payDueToday.count ?? 0) : 0,
+      despesasDoMesCents: canExpenses ? Number(expMonth.total ?? 0) : 0,
       novosClientesHojeCount: Number(newCustomersToday.count ?? 0),
       pendenciasIaCount: Number(pendingAi.count ?? 0),
-      ticketMedioCents: Math.round(avgTicket),
-      vendasHojeCount: Number(salesToday.count ?? 0),
+      ticketMedioCents: canRevenue ? Math.round(avgTicket) : 0,
+      vendasHojeCount: canRevenue ? Number(salesToday.count ?? 0) : 0,
     };
   }),
 

@@ -5,12 +5,16 @@ import superjson from "superjson";
 import { db } from "@/server/db/client";
 import { userTenants } from "@/server/db/schema";
 import { getSessionFromCookies, type SessionPayload } from "@/server/auth/session";
-import type { TenantCtx } from "@/server/lib/tenant-context";
+import {
+  effectivePermissions,
+  type TenantCtx,
+  type TenantPermissions,
+  type TenantRole,
+} from "@/server/lib/tenant-context";
 
 export type TrpcContext = {
   session: SessionPayload | null;
   tenant: TenantCtx | null;
-  /** Headers da Response — use append('Set-Cookie', …) para setar cookies. */
   resHeaders: Headers;
 };
 
@@ -22,17 +26,19 @@ export async function createContext(opts: FetchCreateContextFnOptions): Promise<
     return { session, tenant: null, resHeaders };
   }
   const link = await db
-    .select({ role: userTenants.role })
+    .select({ role: userTenants.role, permissions: userTenants.permissions })
     .from(userTenants)
     .where(and(eq(userTenants.userId, session.userId), eq(userTenants.tenantId, session.tenantId)))
     .limit(1);
   if (!link[0]) {
     return { session, tenant: null, resHeaders };
   }
-  const role = link[0].role as TenantCtx["role"];
+  const role = link[0].role as TenantRole;
+  const overrides = (link[0].permissions ?? {}) as Partial<TenantPermissions>;
+  const permissions = effectivePermissions(role, overrides);
   return {
     session,
-    tenant: { userId: session.userId, tenantId: session.tenantId, role },
+    tenant: { userId: session.userId, tenantId: session.tenantId, role, permissions },
     resHeaders,
   };
 }
@@ -58,6 +64,14 @@ export const tenantReadProcedure = t.procedure.use(({ ctx, next }) => {
 export const tenantWriteProcedure = tenantReadProcedure.use(({ ctx, next }) => {
   if (ctx.tenant.role === "operator") {
     throw new TRPCError({ code: "FORBIDDEN", message: "Operator cannot write" });
+  }
+  return next({ ctx });
+});
+
+/** Garante que o usuário tem permissão para gerenciar usuários. */
+export const tenantOwnerProcedure = tenantReadProcedure.use(({ ctx, next }) => {
+  if (!ctx.tenant.permissions.manage_users) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Apenas o dono gerencia usuários." });
   }
   return next({ ctx });
 });
