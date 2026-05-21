@@ -11,6 +11,7 @@ import {
   userTenants,
 } from "@/server/db/schema";
 import { defaultCategoriesFor, suggestedProductsFor, type SegmentKey } from "@/server/lib/segments";
+import { uniqueSlug } from "@/server/lib/slug";
 import {
   protectedProcedure,
   router,
@@ -63,7 +64,8 @@ export const tenantRouter = router({
   create: protectedProcedure
     .input(
       z.object({
-        slug: slugRule,
+        /** Opcional. Se vazio, geramos a partir do `name` automaticamente. */
+        slug: slugRule.optional(),
         name: z.string().min(1).max(120),
         businessType: segmentRule,
         lgpdDataControllerEmail: z.string().email(),
@@ -72,14 +74,20 @@ export const tenantRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const dupe = await db.select().from(tenants).where(eq(tenants.slug, input.slug)).limit(1);
-      if (dupe[0]) throw new TRPCError({ code: "CONFLICT", message: "Slug já em uso." });
+      const slug = await uniqueSlug(input.slug || input.name, async (candidate) => {
+        const [row] = await db
+          .select({ id: tenants.id })
+          .from(tenants)
+          .where(eq(tenants.slug, candidate))
+          .limit(1);
+        return Boolean(row);
+      });
 
       const tenant = await db.transaction(async (tx) => {
         const [t] = await tx
           .insert(tenants)
           .values({
-            slug: input.slug,
+            slug,
             name: input.name,
             businessType: input.businessType,
             ownerUserId: ctx.session.userId,

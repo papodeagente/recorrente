@@ -33,7 +33,6 @@ export default function OnboardingPage() {
 
   const [biz, setBiz] = useState({
     name: "",
-    slug: "",
     segment: "delivery",
     lgpdEmail: "",
   });
@@ -58,7 +57,6 @@ export default function OnboardingPage() {
             onSubmit={async (e) => {
               e.preventDefault();
               await createTenant.mutateAsync({
-                slug: biz.slug,
                 name: biz.name,
                 businessType: biz.segment as "delivery" | "alimentacao" | "barbearia" | "beleza" | "estetica" | "loja" | "servico" | "outro",
                 lgpdDataControllerEmail: biz.lgpdEmail || me?.user?.email || "owner@example.com",
@@ -67,11 +65,8 @@ export default function OnboardingPage() {
               setStep("products");
             }}
           >
-            <Field label="Nome do negócio">
+            <Field label="Nome do negócio" hint="Pode usar acentos e espaços normalmente.">
               <Input required value={biz.name} onChange={(e) => setBiz({ ...biz, name: e.target.value })} />
-            </Field>
-            <Field label="Identificador (URL)" hint="Letras minúsculas, números, hífen.">
-              <Input required pattern="[a-z0-9-]+" value={biz.slug} onChange={(e) => setBiz({ ...biz, slug: e.target.value })} />
             </Field>
             <Field label="Segmento">
               <div className="grid grid-cols-2 gap-2">
