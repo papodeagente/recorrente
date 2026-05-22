@@ -2,15 +2,16 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import { and, eq } from "drizzle-orm";
 import superjson from "superjson";
+import { buildClearSessionCookie, getSessionFromCookies, type SessionPayload } from "@/server/auth/session";
 import { db } from "@/server/db/client";
-import { userTenants } from "@/server/db/schema";
-import { getSessionFromCookies, type SessionPayload } from "@/server/auth/session";
+import { userTenants, users } from "@/server/db/schema";
 import {
   effectivePermissions,
   type TenantCtx,
   type TenantPermissions,
   type TenantRole,
 } from "@/server/lib/tenant-context";
+import { logger } from "@/server/lib/logger";
 
 export type TrpcContext = {
   session: SessionPayload | null;
@@ -19,20 +20,32 @@ export type TrpcContext = {
 };
 
 export async function createContext(opts: FetchCreateContextFnOptions): Promise<TrpcContext> {
-  const session = await getSessionFromCookies();
   const resHeaders = opts.resHeaders;
+  const session = await getSessionFromCookies();
 
-  if (!session?.tenantId) {
-    return { session, tenant: null, resHeaders };
+  if (!session) return { session: null, tenant: null, resHeaders };
+
+  // Valida que o user ainda existe (cobre cookie antigo após reset de DB).
+  const [user] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, session.userId))
+    .limit(1);
+  if (!user) {
+    logger.info({ userId: session.userId }, "[ctx] orphan session — clearing cookie");
+    resHeaders.append("Set-Cookie", buildClearSessionCookie());
+    return { session: null, tenant: null, resHeaders };
   }
+
+  if (!session.tenantId) return { session, tenant: null, resHeaders };
+
   const link = await db
     .select({ role: userTenants.role, permissions: userTenants.permissions })
     .from(userTenants)
     .where(and(eq(userTenants.userId, session.userId), eq(userTenants.tenantId, session.tenantId)))
     .limit(1);
-  if (!link[0]) {
-    return { session, tenant: null, resHeaders };
-  }
+  if (!link[0]) return { session, tenant: null, resHeaders };
+
   const role = link[0].role as TenantRole;
   const overrides = (link[0].permissions ?? {}) as Partial<TenantPermissions>;
   const permissions = effectivePermissions(role, overrides);
